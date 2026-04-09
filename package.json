@@ -1,0 +1,77 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { getCart } from "@/lib/client-store";
+import { money } from "@/lib/helpers";
+
+export default function CheckoutClient() {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    setItems(getCart());
+  }, []);
+
+  const total = useMemo(() => {
+    const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    return subtotal + (subtotal > 0 ? 8 : 0);
+  }, [items]);
+
+  async function startCheckout() {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.url) throw new Error(data.error || "Checkout failed.");
+      window.location.href = data.url;
+    } catch (err: any) {
+      setError(err.message || "Checkout failed.");
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="container section-grid">
+      <div className="card">
+        <div className="card-body">
+          <h2>Checkout</h2>
+          <p className="muted">Stripe Checkout will handle payment details securely.</p>
+          <div className="form-grid">
+            <input placeholder="First name" defaultValue="Rodri" />
+            <input placeholder="Last name" defaultValue="Pawfan" />
+            <input placeholder="Email" defaultValue="petparent@example.com" className="span-2" />
+            <input placeholder="Address" defaultValue="145 Orchard Lane" className="span-2" />
+            <input placeholder="City" defaultValue="Austin" />
+            <input placeholder="ZIP code" defaultValue="78701" />
+          </div>
+          {error ? <p className="error-text">{error}</p> : null}
+          <button className="btn" disabled={items.length === 0 || loading} onClick={startCheckout}>
+            {loading ? "Redirecting..." : "Pay with Stripe"}
+          </button>
+        </div>
+      </div>
+
+      <aside className="card summary-card">
+        <div className="card-body">
+          <h3>Summary</h3>
+          {items.map((item) => (
+            <div key={item.id} className="summary-line">
+              <span>{item.title} × {item.quantity}</span>
+              <strong>{money(item.price * item.quantity)}</strong>
+            </div>
+          ))}
+          <div className="summary-line total">
+            <span>Total</span>
+            <strong>{money(total)}</strong>
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+}
